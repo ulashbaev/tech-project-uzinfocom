@@ -37,12 +37,15 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 .get()
                 .uri(AUTH_SERVICE_URL)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .retrieve()
-                .onStatus(status -> status == HttpStatus.UNAUTHORIZED || status == HttpStatus.FORBIDDEN,
-                        response -> Mono.error(new RuntimeException("Unauthorized")))
-                .bodyToMono(String.class)
-                .then(chain.filter(exchange));
+                .exchangeToMono(response -> {
+                    if (response.statusCode().equals(HttpStatus.UNAUTHORIZED) || response.statusCode().equals(HttpStatus.FORBIDDEN)) {
+                        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                        return exchange.getResponse().setComplete();
+                    }
+                    return chain.filter(exchange);
+                });
     }
+
 
     @Override
     public int getOrder() {
