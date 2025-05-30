@@ -5,6 +5,7 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
@@ -45,7 +46,15 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                     return exchange.getResponse().setComplete().then(Mono.empty());
                 })
                 .bodyToMono(String.class)
-                .then(chain.filter(exchange));
+                .flatMap(response -> {
+                    System.out.println("Token is valid, forwarding to target service");
+                    ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                            .header(HttpHeaders.AUTHORIZATION, authHeader)
+                            .build();
+                    return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                });
+
+
     }
 
     @Override
