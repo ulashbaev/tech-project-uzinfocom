@@ -10,7 +10,7 @@ import java.util.Date;
 @Service
 public class JwtService {
     private static final String SECRET = "mysecretkeymysecretkeymysecretkey12345";
-    private static final long EXPIRATION = 120; // 1 day
+    private static final long EXPIRATION = 1000 * 60 * 60 * 3; // 3 hours
 
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(SECRET.getBytes());

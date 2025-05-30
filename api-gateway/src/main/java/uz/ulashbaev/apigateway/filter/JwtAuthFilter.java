@@ -1,6 +1,6 @@
 package uz.ulashbaev.apigateway.filter;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
@@ -11,41 +11,45 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 @Component
+@RequiredArgsConstructor
 public class JwtAuthFilter implements GlobalFilter, Ordered {
 
-    @Autowired
-    private WebClient.Builder webClientBuilder;
-
-    private static final String AUTH_SERVICE_URL = "http://AUTH-SERVICE/auth/me";
+    private final WebClient.Builder webClientBuilder;
+    private static final String AUTH_SERVICE_URI = "http://AUTH-SERVICE/auth/me";
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, org.springframework.cloud.gateway.filter.GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
+
+        // Token talab qilinmaydigan endpointlar
         if (path.startsWith("/auth/")) {
             return chain.filter(exchange);
         }
 
-        HttpHeaders headers = exchange.getRequest().getHeaders();
-        String authHeader = headers.getFirst(HttpHeaders.AUTHORIZATION);
+        String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
         }
 
         String token = authHeader.substring(7);
+
         return webClientBuilder.build()
                 .get()
-                .uri(AUTH_SERVICE_URL)
+                .uri(AUTH_SERVICE_URI)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .retrieve()
-                .onStatus(status -> status == HttpStatus.UNAUTHORIZED,
-                        response -> Mono.error(new RuntimeException("Unauthorized")))
+                .onStatus(HttpStatus.UNAUTHORIZED::equals, clientResponse -> {
+                    exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                    return exchange.getResponse().setComplete().then(Mono.empty());
+                })
                 .bodyToMono(String.class)
                 .then(chain.filter(exchange));
     }
 
     @Override
     public int getOrder() {
-        return -1;
+        return -1; // eng yuqori ustuvorlik
     }
 }
